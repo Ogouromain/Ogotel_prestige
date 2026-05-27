@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import { SITE } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 const subscriptionSchema = z.object({
   hotel_name: z.string().min(1, "Le nom de l'hôtel est requis"),
@@ -71,7 +74,11 @@ export async function POST(request: NextRequest) {
       try {
         const { Resend } = await import("resend");
         const resend = new Resend(resendKey);
-        const adminEmail = process.env.SUPER_ADMIN_EMAIL || SITE.email;
+        const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.SUPER_ADMIN_EMAIL;
+        if (!adminEmail) {
+          console.warn("[subscription/request] ADMIN_NOTIFICATION_EMAIL et SUPER_ADMIN_EMAIL non configurés — notification ignorée.");
+          return; // Ne pas envoyer sans adresse valide
+        }
 
         // Escaper les données utilisateur pour prévenir le XSS
         const esc = (s: string) =>
@@ -103,10 +110,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── 3. Lien WhatsApp pour suivi ────────────────────────────
+    const whatsappNumber = process.env.WHATSAPP_NUMBER || "2250576103277";
     const whatsappMessage = encodeURIComponent(
       `Bonjour, je viens de soumettre une demande d'abonnement ${desired_plan} pour ${hotel_name}. Mon nom : ${contact_name}.`
     );
-    const whatsappUrl = `https://wa.me/${SITE.whatsapp}?text=${whatsappMessage}`;
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${whatsappMessage}`;
 
     return NextResponse.json(
       {

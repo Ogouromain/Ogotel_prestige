@@ -4,9 +4,6 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * Middleware principal — gère la session et protège les routes.
  *
- * Exécuté sur CHAQUE requête (sauf assets statiques).
- * Utilise le cookie de session pour identifier l'utilisateur.
- *
  * Routes protégées :
  *   /dashboard/* → redirige vers /connexion si non connecté
  *
@@ -20,12 +17,14 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ─── Graceful fallback si Supabase n'est pas configuré ──────────────
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    // En développement sans Supabase, on laisse passer les routes publiques
-    // et on redirige les routes dashboard vers connexion
     if (pathname.startsWith("/dashboard")) {
       const url = request.nextUrl.clone();
       url.pathname = "/connexion";
@@ -52,14 +51,9 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // ─── Récupération de l'utilisateur ──────────────────────────────
-  let user = null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    // Session invalide ou erreur réseau — on considère non connecté
-  }
+  // ─── Récupération de l'utilisateur (pas de try/catch) ─────────────
+  const { data } = await supabase.auth.getUser();
+  const user = data.user ?? null;
 
   // ─── 1. Protection des routes dashboard ────────────────────────
   const isDashboardRoute = pathname.startsWith("/dashboard");

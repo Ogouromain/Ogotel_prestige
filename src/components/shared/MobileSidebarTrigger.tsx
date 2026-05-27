@@ -38,6 +38,8 @@ function getSectionLabel(item: SidebarItem): string | null {
   if (item.href.startsWith("/dashboard/admin")) return "Administration";
   if (item.href.startsWith("/dashboard/reservations")) return "Réception";
   if (item.href.startsWith("/dashboard/clients")) return "Réception";
+  if (item.href.startsWith("/dashboard/check-in-out")) return "Réception";
+  if (item.href.startsWith("/dashboard/paiements")) return "Réception";
   if (item.href.startsWith("/dashboard/chambres")) return "Gestion";
   if (item.href.startsWith("/dashboard/personnel")) return "Gestion";
   if (item.href.startsWith("/dashboard/mon-hotel")) return "Établissement";
@@ -144,8 +146,7 @@ export function MobileSidebarTrigger({ profile }: MobileSidebarTriggerProps) {
 
               return (
                 <div key={section.label} className="mt-4 first:mt-0">
-                  {!collapsed && (
-                    <div className="mb-2 flex items-center gap-2 px-3">
+                  <div className="mb-2 flex items-center gap-2 px-3">
                       {SectionIcon && (
                         <SectionIcon className="h-3.5 w-3.5 text-slate/50" />
                       )}
@@ -153,7 +154,6 @@ export function MobileSidebarTrigger({ profile }: MobileSidebarTriggerProps) {
                         {section.label}
                       </span>
                     </div>
-                  )}
                   {section.items.map((item) => {
                     const isActive =
                       pathname === item.href ||

@@ -1,44 +1,86 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/shared/DashboardSidebar";
 import { MobileSidebarTrigger } from "@/components/shared/MobileSidebarTrigger";
 import { DashboardRoleGuard } from "@/components/shared/DashboardRoleGuard";
-import type { UserProfile } from "@/types";
+import type { Role } from "@/lib/constants";
 
-export default async function DashboardLayout({
-  children,
-}: {
+type DashboardLayoutProps = {
   children: React.ReactNode;
-}) {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+};
 
-  // ─── Garde d'accès : non connecté → redirection ────────────────
-  if (!user) redirect("/connexion");
+export default async function DashboardLayout({ children }: DashboardLayoutProps) {
+  // ─── Auth ────────────────────────────────────────────────────────
+  // createServerClient() peut lancer une erreur si Supabase n'est pas configuré.
+  // On la catche UNIQUEMENT pour rediriger proprement, jamais pour avaler NEXT_REDIRECT.
+  let user: { id: string; email?: string } | null = null;
 
-  // ─── Récupération du profil ─────────────────────────────────────
-  let profile: UserProfile | null = null;
   try {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("profiles")
-      .select("*, hotels(name)")
-      .eq("id", user.id)
-      .single();
-    profile = data as UserProfile & { hotels?: { name: string } } | null;
-  } catch {
-    // Profil non trouvé — la table n'existe peut-être pas encore
+    const supabase = await createServerClient();
+    const { data, error } = await supabase.auth.getUser();
+
+    if (error || !data.user) {
+      redirect("/connexion");
+    }
+    user = data.user;
+  } catch (err: unknown) {
+    // NEXT_REDIRECT est un signal interne de Next.js — ne jamais l'attraper
+    const msg = err instanceof Error ? err.message : "";
+    if (msg === "NEXT_REDIRECT") throw err;
+    if (msg.includes("DYNAMIC_SERVER_USAGE")) throw err;
+
+    // Toute autre erreur (Supabase indisponible, cookies invalides, etc.)
+    console.error("[Dashboard Layout] Erreur auth:", msg);
+    redirect("/connexion?error=serveur");
   }
 
-  const userRole = profile?.role ?? "receptionist";
-  const fullName = profile?.full_name ?? user.email ?? "";
-  const hotelName = (profile as any)?.hotels?.name;
+  // ─── Profil avec jointure hôtel (via admin client pour fiabilité) ─
+  // Supabase retourne hotels comme un tableau — on cast en any pour éviter
+  // le conflit de type array vs object sur la jointure.
+  let profileData: { id: string; role: Role; hotel_id: string | null; is_active: boolean; full_name: string; hotels?: any } | null = null;
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("profiles")
+      .select("id, role, hotel_id, is_active, full_name, hotels(name)")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[Dashboard Layout] Erreur profil:", error.message);
+      redirect("/connexion?error=profil");
+    }
+
+    profileData = data;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg === "NEXT_REDIRECT") throw err;
+    if (msg.includes("DYNAMIC_SERVER_USAGE")) throw err;
+
+    console.error("[Dashboard Layout] Erreur chargement profil:", msg);
+    redirect("/connexion?error=profil");
+  }
+
+  if (!profileData) {
+    redirect("/connexion?error=profil-introuvable");
+  }
+
+  if (!profileData.is_active) {
+    redirect("/connexion?error=compte-inactif");
+  }
+
+  // ─── Données profil ───────────────────────────────────────────────
+  const userRole: Role = profileData.role;
+  const fullName = profileData.full_name || user.email || "Utilisateur";
+  const hotelName = profileData.hotels?.name;
   const initial = fullName.charAt(0).toUpperCase();
 
-  // ─── Label du rôle pour l'en-tête ──────────────────────────────
   const roleLabel =
     userRole === "super_admin"
       ? "Super Administrateur"

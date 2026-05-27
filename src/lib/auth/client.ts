@@ -1,4 +1,4 @@
-import { createBrowserClient } from "@/lib/supabase/client";
+import { initSupabaseClient, getSupabaseClient } from "@/lib/supabase/client";
 import type { AuthResult, AuthResultWithError } from "./types";
 
 /**
@@ -8,7 +8,8 @@ import type { AuthResult, AuthResultWithError } from "./types";
  * Renvoie { user, session } ou { user: null, session: null } si non connecté.
  */
 export async function getUser(): Promise<AuthResult> {
-  const supabase = createBrowserClient();
+  await initSupabaseClient();
+  const supabase = getSupabaseClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -28,7 +29,8 @@ export async function signInWithEmail(
   email: string,
   password: string,
 ): Promise<AuthResultWithError> {
-  const supabase = createBrowserClient();
+  await initSupabaseClient();
+  const supabase = getSupabaseClient();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -60,7 +62,8 @@ export async function signInWithEmail(
  * Déconnexion — CÔTÉ NAVIGATEUR.
  */
 export async function signOut(): Promise<void> {
-  const supabase = createBrowserClient();
+  await initSupabaseClient();
+  const supabase = getSupabaseClient();
   await supabase.auth.signOut();
 }
 
@@ -70,10 +73,11 @@ export async function signOut(): Promise<void> {
  * @param callback Fonction appelée à chaque changement de session
  * @returns Fonction de nettoyage (unsubscribe)
  */
-export function onAuthStateChange(
+export async function onAuthStateChange(
   callback: (session: import("@supabase/supabase-js").Session | null) => void,
 ) {
-  const supabase = createBrowserClient();
+  await initSupabaseClient();
+  const supabase = getSupabaseClient();
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((_event, session) => {

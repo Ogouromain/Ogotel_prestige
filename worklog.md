@@ -156,3 +156,145 @@ Stage Summary:
 - Check-in/check-out with confirmation dialogs and automatic room status update
 - Payment recording with remaining balance display
 - Fast reception-focused UX with big action buttons
+---
+Task ID: security-ux-polish
+Agent: main
+Task: Finaliser sécurité, robustesse et UX — garde rôles, 404, loading/error, navigation propre
+
+Work Log:
+- Créé `src/middleware.ts` — Middleware Next.js pour protéger les routes /dashboard/* (redirect vers /connexion si non connecté)
+- Amélioré `src/lib/supabase/middleware.ts` — Fallback graceful si Supabase non configuré, try/catch sur getUser()
+- Créé `src/app/not-found.tsx` — Page 404 premium pour le site public (avec branding OGOTEL)
+- Créé `src/app/(dashboard)/dashboard/not-found.tsx` — Page 404 pour le dashboard
+- Créé `src/components/shared/AccessDenied.tsx` — Composant d'accès refusé avec détails des rôles (required + current)
+- Créé `src/components/shared/DashboardRoleGuard.tsx` — Garde de rôle côté client pour toutes les routes dashboard (admin→super_admin, personnel→hotel_admin, mon-hotel→hotel_admin/manager, chambres→hotel_admin/manager)
+- Créé `src/components/shared/RoleGuard.tsx` — Hook et composant de garde réutilisable
+- Corrigé `src/lib/constants/navigation.ts` — Supprimé 3 liens cassés (facturation, statistiques, parametres) + nettoyé les rôles super_admin des items réception
+- Refondu `src/components/shared/DashboardSidebar.tsx` — Sidebar avec sections visuelles (Administration, Réception, Gestion, Établissement) + icônes de section + séparateurs
+- Refondu `src/components/shared/MobileSidebarTrigger.tsx` — Même logique de sections pour le menu mobile
+- Créé `src/components/shared/PageLoading.tsx` — 3 variantes: PageLoading, ListLoading, DetailLoading
+- Créé `src/components/shared/PageError.tsx` — Composant d'erreur standard avec retry
+- Créé `src/components/shared/Breadcrumb.tsx` — Fil d'Ariane automatique avec map de labels français
+- Créé `src/app/(dashboard)/loading.tsx` — Loading pour le layout dashboard
+- Créé `src/app/(dashboard)/error.tsx` — Error boundary pour le layout dashboard
+- Créé 18 fichiers `loading.tsx` pour toutes les routes dashboard (listes → ListLoading, détails → DetailLoading)
+- Modifié `src/app/(dashboard)/layout.tsx` — Intégré DashboardRoleGuard, nettoyé le code, ajouté du responsive
+- Ajouté garde sécurité runtime dans `src/lib/supabase/admin.ts` — Throw si createAdminClient() appelé côté navigateur
+- Supprimé la ré-export de createAdminClient dans `src/lib/supabase/index.ts`
+- Audit sécurité complet: 38 fichiers audités, SERVICE_ROLE_KEY jamais côté client
+
+Stage Summary:
+- 36 fichiers modifiés/créés (1015 insertions, 104 suppressions)
+- Middleware Next.js fonctionnel avec protection des routes dashboard
+- Pages 404 public + dashboard
+- Garde de rôle client-side sur toutes les routes protégées
+- Navigation propre sans liens cassés, organisée par sections
+- 20 fichiers loading/error pour UX cohérente
+- Sécurité SERVICE_ROLE_KEY validée (garde runtime + suppression barrel export)
+- Lint: 0 erreurs
+
+---
+Task ID: fix-build-config
+Agent: build config agent
+Task: Fix build configuration and environment for Vercel deployment
+
+Work Log:
+- Removed unused `eslint-disable-next-line @typescript-eslint/no-explicit-any` directive in `src/lib/supabase/middleware.ts` line 56
+- Created `.env.example` at project root with documented environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL)
+- Created `vercel.json` at project root with framework set to `nextjs`
+- Updated `next.config.ts` — added `images: { unoptimized: true }` to handle image optimization without external service
+- Updated `package.json` scripts — simplified `build` to `next build` for Vercel, moved standalone copy commands to `build:standalone`
+- Lint passes clean (0 errors, 0 warnings)
+
+Stage Summary:
+- Project configuration ready for Vercel deployment
+- 2 new files: `.env.example`, `vercel.json`
+- 2 modified files: `next.config.ts`, `package.json`
+- 1 modified file: `src/lib/supabase/middleware.ts` (eslint fix)
+
+---
+Task ID: fix-login-ux
+Agent: frontend agent
+Task: Fix login page UX with proper setup flow detection
+
+Work Log:
+- Rewrote `src/app/(public)/connexion/page.tsx` with full setup state machine
+- Introduced `SetupStep` type union: `"loading" | "env" | "schema" | "create_admin" | "login" | "unknown"`
+- Page now calls `GET /api/setup/init` on mount to determine current setup state
+- Loading state shows spinning Loader2 with "Vérification de la configuration…" text
+- `env` state: full-page message with Settings icon explaining Supabase needs configuration, CTA to `/installer`
+- `schema` state: full-page message with Database icon explaining schema needs deployment, CTA to `/installer`
+- `create_admin` state: full-page message with UserPlus icon prompting to create super admin, CTA to `/installer`
+- `unknown` state: generic error message with AlertCircle icon, CTA to `/installer`
+- `login` state: shows the full login form (email/password) with OGOTEL branding
+- Added subtle badge "Connectez-vous avec vos identifiants super administrateur" above the form
+- Removed the old yellow AlertTriangle banner — setup states now take over the entire card area
+- Used `AnimatePresence mode="wait"` for smooth transitions between states
+- Kept all existing features: "Mot de passe oublié ?" placeholder, Google social login placeholder, "Demander un essai" link
+- Used react-hook-form + zod for login form validation
+- Used framer-motion for animations, shadcn/ui components (Button, Input, Form)
+- Fully responsive mobile-first design with premium OGOTEL navy/gold palette
+- Lint passes clean (0 errors)
+
+Stage Summary:
+- 1 file rewritten: `src/app/(public)/connexion/page.tsx`
+- Login page now properly handles all 5 setup states with clear user guidance
+- Users are guided to `/installer` when setup is incomplete (env, schema, create_admin)
+- Login form only shown when everything is ready (step === "login")
+- Network errors handled gracefully with "unknown" fallback state
+- Prevents crash when Supabase is not configured (no more non-null assertion on undefined env vars)
+
+---
+Task ID: vercel-deployment
+Agent: main
+Task: Deploy OGOTEL Prestige to Vercel with Supabase environment variables
+
+Work Log:
+- Installed Vercel CLI globally via bun
+- Authenticated with Vercel using project token
+- Linked project to Vercel: ogouromains-projects/ogotel-prestige
+- Fixed TypeScript build error: `hasFilters()` function missing in check-in-out page
+- Created `.env.local` with real Supabase credentials for local development
+- Removed placeholder env vars from Vercel and added real ones:
+  - NEXT_PUBLIC_SUPABASE_URL=https://igkyjfagucwkznwccknd.supabase.co
+  - NEXT_PUBLIC_SUPABASE_ANON_KEY (real anon key)
+  - SUPABASE_SERVICE_ROLE_KEY (real service role key)
+  - NEXT_PUBLIC_APP_URL=https://ogotel-prestige.vercel.app
+  - SUPER_ADMIN_EMAIL=admin@ogotel.com
+  - SUPER_ADMIN_WHATSAPP=+2250707070707
+- Attempted GitHub repo connection via CLI (token lacks GitHub integration permissions)
+- Successfully deployed to Vercel production (build passed with real Supabase keys)
+
+Stage Summary:
+- Production URL: https://ogotel-prestige.vercel.app
+- Vercel dashboard: https://vercel.com/ogouromains-projects/ogotel-prestige
+- 6 environment variables configured on Vercel (production)
+- .env.local created for local dev (not committed to git)
+- GitHub repo connection requires manual setup on Vercel dashboard (token permission limitation)
+
+---
+Task ID: security-critical-fixes
+Agent: main
+Task: Fix 3 critical security vulnerabilities (setup routes, hardcoded email, debug endpoint)
+
+Work Log:
+- **VULN 1: Setup routes non protégées**
+  - DELETED `/api/setup/create-super-admin/route.ts` — redundant, unused, zero auth
+  - DELETED `/api/setup/check/route.ts` — unused, leaked initialization status
+  - REWRITTEN `/api/setup/init/route.ts` — added `validateSetupSecret()` requiring `x-setup-secret` header matching `SETUP_SECRET` env var; in production, SETUP_SECRET is mandatory (returns 403 if missing); changed admin-exists POST from 400→403; removed `admin_email` from GET response (no longer leaks admin email); added audit log on admin creation with IP
+  - UPDATED `/installer/page.tsx` — added `setupSecret` field to form with `ShieldCheck` icon; sends `x-setup-secret` header on POST; shows specific 403 error toast for forbidden access
+- **VULN 2: Hardcoded super_admin email**
+  - FIXED `/api/subscription/request/route.ts` — removed `SITE.email` fallback (`omouitsi@gmail.com`); admin notification now uses `ADMIN_NOTIFICATION_EMAIL || SUPER_ADMIN_EMAIL` env vars only; if neither is set, notification is skipped with warning log instead of sending to hardcoded email
+  - Removed `SITE` import dependency from API route; WhatsApp number now uses `WHATSAPP_NUMBER` env var
+- **VULN 3: Debug/env endpoint**
+  - DELETED `/api/debug/env/route.ts` entirely — leaked first 10 chars of SERVICE_ROLE_KEY, listed all env var names (reconnaissance helper)
+  - HARDENED `/api/config/route.ts` — added `Cache-Control: private, no-store, max-age=0` and `X-Content-Type-Options: nosniff` headers; removed `appUrl` from response (not needed by client); prioritized `NEXT_PUBLIC_*` vars over server vars; added security doc comment explaining only anon key is exposed
+- Lint passes clean (0 errors)
+
+Stage Summary:
+- 3 files deleted, 3 files rewritten/modified, 1 file updated
+- Setup routes now require SETUP_SECRET env var in production (mandatory)
+- No more hardcoded personal email in notification logic
+- Debug diagnostic endpoint completely removed
+- Admin email no longer leaked in setup status response
+- Attack surface reduced: 3 API routes deleted, 2 routes hardened
