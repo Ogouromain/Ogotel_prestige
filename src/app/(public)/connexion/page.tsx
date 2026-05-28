@@ -59,6 +59,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   profil: "Impossible de charger votre profil. Contactez l'administrateur.",
   "profil-introuvable": "Aucun profil associé à votre compte. Contactez l'administrateur.",
   "compte-inactif": "Votre compte a été désactivé. Contactez l'administrateur.",
+  "hotel-manquant": "Aucun hôtel associé à votre compte. Contactez l'administrateur.",
   session: "Votre session a expiré. Veuillez vous reconnecter.",
 };
 

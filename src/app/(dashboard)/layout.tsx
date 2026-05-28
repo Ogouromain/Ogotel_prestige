@@ -4,7 +4,6 @@ export const fetchCache = "force-no-store";
 
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { DashboardSidebar } from "@/components/shared/DashboardSidebar";
 import { MobileSidebarTrigger } from "@/components/shared/MobileSidebarTrigger";
 import { DashboardRoleGuard } from "@/components/shared/DashboardRoleGuard";
@@ -14,71 +13,78 @@ type DashboardLayoutProps = {
   children: React.ReactNode;
 };
 
+/**
+ * DashboardLayout — Gate d'authentification pour TOUTES les pages /dashboard/*.
+ *
+ * Flux de vérification (sans try/catch autour des redirects) :
+ *   1. Auth Supabase via createServerClient() (cookies utilisateur)
+ *   2. Profil via le MÊME client (pas de SERVICE_ROLE_KEY)
+ *   3. Validation : profil existe, actif, rôle, hôtel
+ *   4. Rendu du layout avec sidebar et header
+ */
 export default async function DashboardLayout({ children }: DashboardLayoutProps) {
-  // ─── Auth ────────────────────────────────────────────────────────
-  // createServerClient() peut lancer une erreur si Supabase n'est pas configuré.
-  // On la catche UNIQUEMENT pour rediriger proprement, jamais pour avaler NEXT_REDIRECT.
-  let user: { id: string; email?: string } | null = null;
+  // ═══════════════════════════════════════════════════════════════════════
+  // ÉTAPE 1 — Authentification (createServerClient = cookies utilisateur)
+  // ═══════════════════════════════════════════════════════════════════════
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  try {
-    const supabase = await createServerClient();
-    const { data, error } = await supabase.auth.getUser();
-
-    if (error || !data.user) {
-      redirect("/connexion");
-    }
-    user = data.user;
-  } catch (err: unknown) {
-    // NEXT_REDIRECT est un signal interne de Next.js — ne jamais l'attraper
-    const msg = err instanceof Error ? err.message : "";
-    if (msg === "NEXT_REDIRECT") throw err;
-    if (msg.includes("DYNAMIC_SERVER_USAGE")) throw err;
-
-    // Toute autre erreur (Supabase indisponible, cookies invalides, etc.)
-    console.error("[Dashboard Layout] Erreur auth:", msg);
-    redirect("/connexion?error=serveur");
+  if (!user) {
+    console.log("[DASHBOARD AUTH] redirect -> /connexion (aucun user)");
+    redirect("/connexion");
   }
 
-  // ─── Profil avec jointure hôtel (via admin client pour fiabilité) ─
-  // Supabase retourne hotels comme un tableau — on cast en any pour éviter
-  // le conflit de type array vs object sur la jointure.
-  let profileData: { id: string; role: Role; hotel_id: string | null; is_active: boolean; full_name: string; hotels?: any } | null = null;
+  console.log("[DASHBOARD AUTH] user ok — id:", user.id, "email:", user.email);
 
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("profiles")
-      .select("id, role, hotel_id, is_active, full_name, hotels(name)")
-      .eq("id", user.id)
-      .maybeSingle();
+  // ═══════════════════════════════════════════════════════════════════════
+  // ÉTAPE 2 — Profil (MÊME client, pas de SERVICE_ROLE_KEY)
+  // ═══════════════════════════════════════════════════════════════════════
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role, hotel_id, is_active, full_name, hotels(name)")
+    .eq("id", user.id)
+    .maybeSingle();
 
-    if (error) {
-      console.error("[Dashboard Layout] Erreur profil:", error.message);
-      redirect("/connexion?error=profil");
-    }
-
-    profileData = data;
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "";
-    if (msg === "NEXT_REDIRECT") throw err;
-    if (msg.includes("DYNAMIC_SERVER_USAGE")) throw err;
-
-    console.error("[Dashboard Layout] Erreur chargement profil:", msg);
+  if (profileError) {
+    console.error("[DASHBOARD AUTH ERROR] profil query failed:", profileError.message, profileError.code);
     redirect("/connexion?error=profil");
   }
 
-  if (!profileData) {
+  if (!profile) {
+    console.log("[DASHBOARD AUTH] redirect -> /connexion?error=profil-introuvable");
     redirect("/connexion?error=profil-introuvable");
   }
 
-  if (!profileData.is_active) {
+  console.log("[DASHBOARD AUTH] profile ok — role:", profile.role, "is_active:", profile.is_active);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ÉTAPE 3 — Validation profil
+  // ═══════════════════════════════════════════════════════════════════════
+  if (!profile.is_active) {
+    console.log("[DASHBOARD AUTH] redirect -> /connexion?error=compte-inactif");
     redirect("/connexion?error=compte-inactif");
   }
 
-  // ─── Données profil ───────────────────────────────────────────────
-  const userRole: Role = profileData.role;
-  const fullName = profileData.full_name || user.email || "Utilisateur";
-  const hotelName = profileData.hotels?.name;
+  const userRole = profile.role as Role;
+
+  // Les rôles non super_admin doivent avoir un hotel_id
+  if (userRole !== "super_admin" && !profile.hotel_id) {
+    console.log("[DASHBOARD AUTH] redirect -> /connexion?error=hotel-manquant (role:", userRole, ")");
+    redirect("/connexion?error=hotel-manquant");
+  }
+
+  console.log("[DASHBOARD AUTH] role =", userRole, "— accès autorisé");
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ÉTAPE 4 — Données pour le rendu
+  // ═══════════════════════════════════════════════════════════════════════
+  // Supabase retourne hotels comme un tableau — on accède via index [0]
+  const hotels = profile.hotels as any;
+  const hotelName = Array.isArray(hotels) ? hotels[0]?.name : hotels?.name ?? null;
+
+  const fullName = profile.full_name || user.email || "Utilisateur";
   const initial = fullName.charAt(0).toUpperCase();
 
   const roleLabel =
@@ -90,7 +96,9 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           ? "Manager"
           : "Réceptionniste";
 
-  // ─── Rendu du layout ────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════
+  // ÉTAPE 5 — Rendu du layout
+  // ═══════════════════════════════════════════════════════════════════════
   return (
     <div className="flex h-screen bg-background">
       <DashboardSidebar
