@@ -21,15 +21,17 @@ export default function GlobalError({
 }) {
   // En production, rediriger vers la connexion au lieu d'afficher une page morte
   useEffect(() => {
+    // Log the error for debugging
+    console.error("[GLOBAL ERROR]", error?.message, error?.digest);
     const isProduction = process.env.NODE_ENV === "production";
     if (isProduction) {
       // Délai court pour éviter une boucle de redirect
       const timer = setTimeout(() => {
         window.location.href = "/connexion?error=serveur";
-      }, 1500);
+      }, 5000); // Longer delay to see the error
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [error]);
 
   const isProduction = process.env.NODE_ENV === "production";
   const errorMsg = error?.message ?? "Erreur inconnue";
@@ -64,6 +66,10 @@ export default function GlobalError({
                 <p className="mt-3 text-sm text-slate">
                   Une erreur inattendue s&apos;est produite. Redirection vers la page de connexion…
                 </p>
+                <pre className="mt-4 max-h-32 overflow-auto rounded-lg bg-red-50 p-3 text-left text-xs text-red-800 whitespace-pre-wrap">
+                  {errorMsg}
+                  {error.digest && `\n\nDigest: ${error.digest}`}
+                </pre>
                 <div className="mt-6">
                   <a
                     href="/connexion?error=serveur"
