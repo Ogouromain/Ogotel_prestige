@@ -298,3 +298,21 @@ Stage Summary:
 - Debug diagnostic endpoint completely removed
 - Admin email no longer leaked in setup status response
 - Attack surface reduced: 3 API routes deleted, 2 routes hardened
+
+---
+Task ID: fix-framer-motion-ease-types
+Agent: general-purpose (subagent)
+Task: Fix TypeScript build errors — framer-motion `ease` type narrowing in hotel components
+
+Work Log:
+- Analyzed all 6 hotel component files for `ease` string literals in variant objects
+- **Rooms.tsx**: Added `as const` to `ease: 'easeOut'` in `headerVariants` (line 45) and `cardVariants` (line 54)
+- **Amenities.tsx**: Added `as const` to `ease: 'easeOut'` in `headerVariants` (line 99)
+- **Dining.tsx**: Added `as const` to `ease: 'easeOut'` in `imageReveal` (line 53)
+- **Hero.tsx, Contact.tsx, Footer.tsx**: No variant-level `ease` strings found (all usages are inline `transition` props on JSX elements, which are correctly typed by framer-motion's prop definitions and don't need `as const`)
+- `bun run lint` passes clean (0 errors)
+
+Stage Summary:
+- Root cause: TypeScript infers `ease: 'easeOut'` as `string` in plain objects, but framer-motion's `Easing` type is a union of specific string literals (`"easeOut" | "easeIn" | "easeInOut" | ...`). Adding `as const` narrows the literal type.
+- 4 edits across 3 files (Rooms.tsx, Amenities.tsx, Dining.tsx)
+- 3 files unaffected (Hero.tsx, Contact.tsx, Footer.tsx — no variant-level ease strings)
