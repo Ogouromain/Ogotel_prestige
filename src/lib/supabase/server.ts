@@ -10,6 +10,9 @@ import { cookies } from "next/headers";
  *   process.env.SUPABASE_*     → lu au runtime → valeur correcte
  *
  * Fallback sur NEXT_PUBLIC_* si les vars sans préfixe n'existent pas.
+ *
+ * Ne JAMAIS throw — retourne null si Supabase n'est pas configuré.
+ * L'appelant doit vérifier null et gérer l'erreur.
  */
 export async function createServerClient() {
   const url =
@@ -20,10 +23,10 @@ export async function createServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error(
-      "[OGOTEL] Supabase URL/ANON_KEY manquantes. " +
-      "Ajoutez SUPABASE_URL et SUPABASE_ANON_KEY dans les variables d'environnement Vercel."
+    console.error(
+      "[OGOTEL][SERVER CLIENT] SUPABASE_URL ou SUPABASE_ANON_KEY manquantes."
     );
+    return null;
   }
 
   const cookieStore = await cookies();
@@ -41,7 +44,7 @@ export async function createServerClient() {
         } catch {
           // setAll est appelé depuis un Server Component.
           // Impossible de modifier les cookies ici —
-          // le middleware se charge de rafraîchir la session.
+          // le proxy (middleware) se charge de rafraîchir la session.
         }
       },
     },

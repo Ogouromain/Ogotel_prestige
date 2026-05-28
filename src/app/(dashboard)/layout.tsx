@@ -23,80 +23,75 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  let user: any = null
-  let profile: any = null
+  // ═══ 1. Création du client serveur ═══
+  // Séparé du try/catch pour isoler la source d'erreur
+  const supabase = await createServerClient()
 
-  // ═══ Auth — avec gestion d'erreurs complète ═══
-  try {
-    const supabase = await createServerClient()
-
-    const {
-      data: { user: authUser },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !authUser) {
-      console.log('[DASHBOARD AUTH] redirect -> /connexion (no user)', userError?.message)
-      redirect('/connexion')
-    }
-
-    user = authUser
-    console.log('[DASHBOARD AUTH] user ok:', user.id, user.email)
-
-    // ═══ Profil ═══
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, role, hotel_id, is_active, full_name')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (profileError) {
-      console.error('[DASHBOARD AUTH ERROR] profileError:', profileError.message)
-      redirect('/connexion?error=profil')
-    }
-
-    profile = profileData
-  } catch (err: any) {
-    // Gérer les erreurs critiques : Supabase non configuré, erreur réseau, etc.
-    console.error('[DASHBOARD AUTH] Erreur critique:', err?.message)
-
-    // Si Supabase n'est pas configuré, rediriger vers connexion avec message clair
-    if (err?.message?.includes('manquantes') || err?.message?.includes('SUPABASE')) {
-      redirect('/connexion?error=serveur&raison=configuration')
-    }
-
-    // Pour toute autre erreur non gérée, rediriger proprement (pas de crash)
-    redirect('/connexion?error=serveur')
+  if (!supabase) {
+    console.error('[DASHBOARD LAYOUT] createServerClient() a retourné null — Supabase non configuré')
+    redirect('/connexion?error=configuration')
   }
 
-  // ═══ Vérifications profil ═══
+  // ═══ 2. Authentification — getUser() ═══
+  // PAS de try/catch ici : si getUser() throw, c'est une erreur critique
+  // qui DOIT remonter à error.tsx (pas être avalée)
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError) {
+    console.error('[DASHBOARD LAYOUT] getUser() error:', userError.message)
+    redirect('/connexion?error=session')
+  }
+
+  if (!user) {
+    console.log('[DASHBOARD LAYOUT] redirect -> /connexion (no user)')
+    redirect('/connexion')
+  }
+
+  console.log('[DASHBOARD LAYOUT] user ok:', user.id, user.email)
+
+  // ═══ 3. Profil ═══
+  // maybeSingle() : retourne null si pas trouvé (pas d'erreur)
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, email, role, hotel_id, is_active, full_name')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileError) {
+    console.error('[DASHBOARD LAYOUT] profile error:', profileError.message)
+    redirect('/connexion?error=profil')
+  }
+
   if (!profile) {
-    console.log('[DASHBOARD AUTH] redirect -> profil-introuvable')
+    console.log('[DASHBOARD LAYOUT] redirect -> profil-introuvable')
     redirect('/connexion?error=profil-introuvable')
   }
 
   if (!profile.is_active) {
-    console.log('[DASHBOARD AUTH] redirect -> compte-inactif')
+    console.log('[DASHBOARD LAYOUT] redirect -> compte-inactif')
     redirect('/connexion?error=compte-inactif')
   }
 
-  // ═══ Validation rôle ═══
+  // ═══ 4. Validation rôle ═══
+  // super_admin traité EN PREMIER — pas de hotel_id requis
   const userRole = profile.role as Role
 
-  console.log('[DASHBOARD AUTH] profile ok:', {
+  console.log('[DASHBOARD LAYOUT] profile ok:', {
     role: userRole,
     hotel_id: profile.hotel_id,
     is_active: profile.is_active,
   })
 
-  // super_admin → toujours autorisé (hotel_id pas requis)
   // autres rôles → hotel_id obligatoire
   if (userRole !== 'super_admin' && !profile.hotel_id) {
-    console.log('[DASHBOARD AUTH] redirect -> hotel-manquant (role:', userRole, ')')
+    console.log('[DASHBOARD LAYOUT] redirect -> hotel-manquant (role:', userRole, ')')
     redirect('/connexion?error=hotel-manquant')
   }
 
-  // ═══ Données pour le rendu ═══
+  // ═══ 5. Données pour le rendu ═══
   const profileData: ProfileData = {
     id: profile.id,
     email: profile.email ?? user.email ?? null,
@@ -106,7 +101,7 @@ export default async function DashboardLayout({
     full_name: profile.full_name,
   }
 
-  // ═══ Nom d'affichage ═══
+  // ═══ 6. Nom d'affichage ═══
   const fullName = profileData.full_name || profileData.email || 'Utilisateur'
   const initial = fullName.charAt(0).toUpperCase()
 
@@ -119,7 +114,7 @@ export default async function DashboardLayout({
           ? 'Manager'
           : 'Réceptionniste'
 
-  // ═══ Rendu ═══
+  // ═══ 7. Rendu ═══
   return (
     <div className="flex h-screen bg-background">
       <DashboardSidebar

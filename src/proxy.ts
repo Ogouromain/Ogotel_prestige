@@ -16,15 +16,31 @@ export const config = {
 
 /**
  * Proxy Next.js 16 — remplace le middleware.
+ *
  * Gère la session utilisateur et protège les routes dashboard.
+ * En cas d'erreur critique (Supabase non configuré, etc.),
+ * les routes /dashboard sont redirigées vers /connexion proprement.
+ * Les autres routes continuent normalement.
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+
   try {
     return await updateSession(request);
   } catch (error) {
     console.error("[PROXY] Erreur critique:", error);
-    // En cas d'erreur Supabase (config manquante, etc.), laisser passer la requête
-    // Le layout dashboard gérera l'erreur proprement avec une redirection
+
+    // Si c'est une route dashboard, rediriger vers connexion
+    // (ne pas laisser le layout crasher avec error=serveur)
+    if (pathname.startsWith("/dashboard")) {
+      const { NextResponse } = await import("next/server");
+      const url = request.nextUrl.clone();
+      url.pathname = "/connexion";
+      url.searchParams.set("error", "session");
+      return NextResponse.redirect(url);
+    }
+
+    // Pour les autres routes, laisser passer
     const { NextResponse } = await import("next/server");
     return NextResponse.next({ request });
   }

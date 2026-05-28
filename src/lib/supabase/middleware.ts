@@ -25,9 +25,11 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    console.error("[MIDDLEWARE] Supabase non configuré — env vars manquantes");
     if (pathname.startsWith("/dashboard")) {
       const url = request.nextUrl.clone();
       url.pathname = "/connexion";
+      url.searchParams.set("error", "configuration");
       return NextResponse.redirect(url);
     }
     return supabaseResponse;
@@ -51,9 +53,16 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // ─── Récupération de l'utilisateur (pas de try/catch) ─────────────
-  const { data } = await supabase.auth.getUser();
-  const user = data.user ?? null;
+  // ─── Récupération de l'utilisateur avec try/catch ─────────────
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user ?? null;
+  } catch (err) {
+    console.error("[MIDDLEWARE] getUser() erreur:", err);
+    // Si getUser() crash, on considère l'utilisateur comme non authentifié
+    user = null;
+  }
 
   // ─── 1. Protection des routes dashboard ────────────────────────
   const isDashboardRoute = pathname.startsWith("/dashboard");

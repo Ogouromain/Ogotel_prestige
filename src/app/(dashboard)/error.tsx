@@ -17,12 +17,16 @@ export default function DashboardError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[Dashboard Error]", error);
+    console.error("[DASHBOARD ERROR BOUNDARY]", {
+      message: error?.message,
+      digest: error?.digest,
+      stack: error?.stack?.slice(0, 500),
+    });
 
     // En production, rediriger vers connexion
     if (process.env.NODE_ENV === "production") {
       const timer = setTimeout(() => {
-        window.location.href = "/connexion?error=serveur";
+        window.location.href = `/connexion?error=serveur&digest=${encodeURIComponent(error?.digest ?? "unknown")}`;
       }, 2000);
       return () => clearTimeout(timer);
     }
@@ -59,6 +63,9 @@ export default function DashboardError({
               Une erreur est survenue lors du chargement du tableau de bord.
               Redirection vers la connexion…
             </p>
+            <p className="mt-1 text-[10px] text-slate/50 font-mono">
+              Digest: {error?.digest ?? "N/A"}
+            </p>
             <div className="mt-6">
               <a
                 href="/connexion?error=serveur"
@@ -73,6 +80,11 @@ export default function DashboardError({
             <p className="mt-3 text-sm text-slate">
               {error?.message ?? "Erreur inconnue"}
             </p>
+            {error?.digest && (
+              <p className="mt-1 text-[10px] text-slate/50 font-mono">
+                Digest: {error.digest}
+              </p>
+            )}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button
                 onClick={() => reset()}

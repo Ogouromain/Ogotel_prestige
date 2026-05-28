@@ -1,5 +1,4 @@
 import { createServerClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { AuthResult } from "./types";
 import type { UserProfile } from "@/types";
 
@@ -13,6 +12,11 @@ import type { UserProfile } from "@/types";
  */
 export async function getServerUser(): Promise<AuthResult> {
   const supabase = await createServerClient();
+
+  if (!supabase) {
+    return { user: null, session: null };
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -46,7 +50,8 @@ export async function requireServerUser(): Promise<AuthResult> {
  * Récupère le profil complet de l'utilisateur connecté — CÔTÉ SERVEUR.
  *
  * Combine l'utilisateur Supabase Auth + le profil dans la table `profiles`.
- * Utilise le client ADMIN pour contourner le RLS sur `profiles`.
+ * Utilise UNIQUEMENT le client serveur authentifié (pas createAdminClient).
+ * Utilise maybeSingle() pour ne pas crasher si le profil n'existe pas.
  */
 export async function getServerProfile(): Promise<{
   user: NonNullable<AuthResult["user"]> | null;
@@ -55,16 +60,24 @@ export async function getServerProfile(): Promise<{
   const { user } = await getServerUser();
   if (!user) return { user: null, profile: null };
 
+  const supabase = await createServerClient();
+  if (!supabase) return { user, profile: null };
+
   try {
-    const admin = createAdminClient();
-    const { data: profile } = await admin
+    const { data: profile, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
+
+    if (error) {
+      console.error("[getServerProfile] erreur:", error.message);
+      return { user, profile: null };
+    }
 
     return { user, profile: profile as UserProfile | null };
-  } catch {
+  } catch (err) {
+    console.error("[getServerProfile] erreur critique:", err);
     return { user, profile: null };
   }
 }
