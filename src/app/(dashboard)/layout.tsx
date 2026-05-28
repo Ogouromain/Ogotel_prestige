@@ -41,7 +41,7 @@ export default async function DashboardLayout({
   // ═══ Profil (même client, pas de SERVICE_ROLE_KEY) ═══
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, role, hotel_id, is_active, full_name, hotels(name)')
+    .select('id, email, role, hotel_id, is_active, full_name')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -86,12 +86,7 @@ export default async function DashboardLayout({
     full_name: profile.full_name,
   }
 
-  // hotels peut revenir en tableau ou objet selon Supabase
-  const hotels = profile.hotels as any
-  const hotelName = Array.isArray(hotels)
-    ? hotels[0]?.name ?? null
-    : hotels?.name ?? null
-
+  // ═══ Nom d'affichage ═══
   const fullName = profileData.full_name || profileData.email || 'Utilisateur'
   const initial = fullName.charAt(0).toUpperCase()
 
@@ -99,7 +94,7 @@ export default async function DashboardLayout({
     userRole === 'super_admin'
       ? 'Super Administrateur'
       : userRole === 'hotel_admin'
-        ? `Admin — ${hotelName ?? ''}`
+        ? 'Admin'
         : userRole === 'manager'
           ? 'Manager'
           : 'Réceptionniste'
@@ -111,7 +106,6 @@ export default async function DashboardLayout({
         profile={{
           full_name: fullName,
           role: userRole,
-          hotel_name: hotelName,
         }}
       />
       <div className="flex flex-1 flex-col overflow-hidden">

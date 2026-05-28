@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 import type { UserProfile } from "@/types";
 import type { Role } from "@/lib/constants";
@@ -75,12 +74,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── 2. Récupération du profil ──────────────────────────────
-    const admin = createAdminClient();
-    const { data: profile, error: profileError } = await admin
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("*, hotels(name)")
+      .select("id, email, role, hotel_id, is_active, full_name")
       .eq("id", authData.user.id)
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.error(
@@ -96,12 +94,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const typedProfile = profile as UserProfile & {
-      hotels?: { name: string };
-    };
+    const typedProfile = profile as UserProfile;
 
     // ─── 3. Vérification de l'activation du compte ─────────────
-    if (!typedProfile.is_active) {
+    if (!typedProfile?.is_active) {
       await supabase.auth.signOut();
       return NextResponse.json(
         {
@@ -121,7 +117,7 @@ export async function POST(request: NextRequest) {
         full_name: typedProfile.full_name,
         role: typedProfile.role,
         hotel_id: typedProfile.hotel_id,
-        hotel_name: typedProfile.hotels?.name ?? null,
+        hotel_name: null,
       },
       redirect_url: ROLE_REDIRECT_MAP[typedProfile.role] ?? "/dashboard",
     });
