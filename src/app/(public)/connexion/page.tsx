@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -52,9 +52,45 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 
+/* ─── Bannière d'erreur (lit le paramètre ?error= de l'URL) ──────── */
+
+const ERROR_MESSAGES: Record<string, string> = {
+  serveur: "Le serveur est temporairement indisponible. Veuillez réessayer dans quelques instants.",
+  profil: "Impossible de charger votre profil. Contactez l'administrateur.",
+  "profil-introuvable": "Aucun profil associé à votre compte. Contactez l'administrateur.",
+  "compte-inactif": "Votre compte a été désactivé. Contactez l'administrateur.",
+  session: "Votre session a expiré. Veuillez vous reconnecter.",
+};
+
+function ErrorBanner() {
+  const searchParams = useSearchParams();
+  const errorCode = searchParams.get("error");
+
+  if (!errorCode || !ERROR_MESSAGES[errorCode]) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+    >
+      <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+      <span>{ERROR_MESSAGES[errorCode]}</span>
+    </motion.div>
+  );
+}
+
 /* ─── Page ──────────────────────────────────────────────────────────── */
 
 export default function ConnexionPage() {
+  return (
+    <Suspense>
+      <ConnexionPageInner />
+    </Suspense>
+  );
+}
+
+function ConnexionPageInner() {
   const [setupState, setSetupState] = useState<SetupState>({ step: "loading" });
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
@@ -124,6 +160,9 @@ export default function ConnexionPage() {
         className="w-full max-w-md"
       >
         <div className="rounded-2xl border border-border bg-white p-8 shadow-sm">
+          {/* ─── Error banner (from ?error= redirect) ──────────── */}
+          <ErrorBanner />
+
           {/* ─── Logo ─────────────────────────────────────────────── */}
           <div className="flex flex-col items-center text-center">
             <div>
