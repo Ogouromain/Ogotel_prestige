@@ -23,33 +23,53 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  // ═══ Auth ═══
-  const supabase = await createServerClient()
+  let user: any = null
+  let profile: any = null
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+  // ═══ Auth — avec gestion d'erreurs complète ═══
+  try {
+    const supabase = await createServerClient()
 
-  if (userError || !user) {
-    console.log('[DASHBOARD AUTH] redirect -> /connexion (no user)')
-    redirect('/connexion')
+    const {
+      data: { user: authUser },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !authUser) {
+      console.log('[DASHBOARD AUTH] redirect -> /connexion (no user)', userError?.message)
+      redirect('/connexion')
+    }
+
+    user = authUser
+    console.log('[DASHBOARD AUTH] user ok:', user.id, user.email)
+
+    // ═══ Profil ═══
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, role, hotel_id, is_active, full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profileError) {
+      console.error('[DASHBOARD AUTH ERROR] profileError:', profileError.message)
+      redirect('/connexion?error=profil')
+    }
+
+    profile = profileData
+  } catch (err: any) {
+    // Gérer les erreurs critiques : Supabase non configuré, erreur réseau, etc.
+    console.error('[DASHBOARD AUTH] Erreur critique:', err?.message)
+
+    // Si Supabase n'est pas configuré, rediriger vers connexion avec message clair
+    if (err?.message?.includes('manquantes') || err?.message?.includes('SUPABASE')) {
+      redirect('/connexion?error=serveur&raison=configuration')
+    }
+
+    // Pour toute autre erreur non gérée, rediriger proprement (pas de crash)
+    redirect('/connexion?error=serveur')
   }
 
-  console.log('[DASHBOARD AUTH] user ok:', user.id, user.email)
-
-  // ═══ Profil (même client, pas de SERVICE_ROLE_KEY) ═══
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, email, role, hotel_id, is_active, full_name')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (profileError) {
-    console.error('[DASHBOARD AUTH ERROR] profileError:', profileError.message)
-    redirect('/connexion?error=profil')
-  }
-
+  // ═══ Vérifications profil ═══
   if (!profile) {
     console.log('[DASHBOARD AUTH] redirect -> profil-introuvable')
     redirect('/connexion?error=profil-introuvable')

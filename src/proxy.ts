@@ -1,4 +1,5 @@
 import { updateSession } from "@/lib/supabase/middleware";
+import type { NextRequest, NextResponse } from "next/server";
 
 export const config = {
   matcher: [
@@ -13,6 +14,18 @@ export const config = {
   ],
 };
 
-export async function proxy(request: Request) {
-  return await updateSession(request as any);
+/**
+ * Proxy Next.js 16 — remplace le middleware.
+ * Gère la session utilisateur et protège les routes dashboard.
+ */
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  try {
+    return await updateSession(request);
+  } catch (error) {
+    console.error("[PROXY] Erreur critique:", error);
+    // En cas d'erreur Supabase (config manquante, etc.), laisser passer la requête
+    // Le layout dashboard gérera l'erreur proprement avec une redirection
+    const { NextResponse } = await import("next/server");
+    return NextResponse.next({ request });
+  }
 }
