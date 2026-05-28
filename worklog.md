@@ -316,3 +316,34 @@ Stage Summary:
 - Root cause: TypeScript infers `ease: 'easeOut'` as `string` in plain objects, but framer-motion's `Easing` type is a union of specific string literals (`"easeOut" | "easeIn" | "easeInOut" | ...`). Adding `as const` narrows the literal type.
 - 4 edits across 3 files (Rooms.tsx, Amenities.tsx, Dining.tsx)
 - 3 files unaffected (Hero.tsx, Contact.tsx, Footer.tsx — no variant-level ease strings)
+
+---
+Task ID: fix-all-build-errors
+Agent: main
+Task: Fix ALL remaining TypeScript errors blocking Vercel deployment
+
+Work Log:
+- Ran `npx next build` — discovered build still failing with multiple errors
+- **Error 1: framer-motion ease in variant objects (8 more occurrences)**
+  - Gallery.tsx:65 — `ease: [0.25, 0.46, 0.45, 0.94]` → added `as const`
+  - Dining.tsx:41 — `ease: [0.25, 0.46, 0.45, 0.94]` → added `as const`
+  - Amenities.tsx:87 — `ease: [0.25, 0.46, 0.45, 0.94]` → added `as const`
+  - Contact.tsx:38,101 — `ease: 'easeOut'` → added `as const` (2 occurrences)
+  - Footer.tsx:47 — `ease: 'easeOut'` → added `as const`
+  - Hero.tsx:26,51 — `ease: 'easeOut'` and `ease: 'easeInOut'` → added `as const` (2 occurrences)
+- **Error 2: Zod v4 API change in SubscriptionForm.tsx**
+  - `invalid_type_error` → `error` (Zod v4 syntax)
+  - `required_error` → `error` (Zod v4 syntax)
+- **Error 3: Zod v4 + @hookform/resolvers type mismatch**
+  - `z.coerce.number().optional()` infers `unknown` output type in Zod v4
+  - Fixed by casting resolver: `zodResolver(subscriptionSchema) as Resolver<SubscriptionFormValues>`
+- Build passes: `✓ Compiled successfully`, `✓ Generating static pages (33/33)`
+- Committed as `ce82e8c`, pushed to GitHub
+- Vercel should auto-deploy from this commit
+
+Stage Summary:
+- 7 files changed: Gallery.tsx, Dining.tsx, Amenities.tsx, Contact.tsx, Footer.tsx, Hero.tsx, SubscriptionForm.tsx
+- 8 framer-motion ease fixes (cubic bezier arrays + string literals)
+- 2 Zod v4 API fixes (error property syntax)
+- 1 hookform resolver type cast
+- Build passes cleanly — Vercel deployment should succeed
