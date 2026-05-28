@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -44,12 +44,12 @@ const subscriptionSchema = z.object({
   whatsapp: z.string().optional(),
   city: z.string().min(2, "La ville est requise"),
   room_count: z.coerce
-    .number({ invalid_type_error: "Veuillez entrer un nombre" })
-    .int("Le nombre de chambres doit être un entier")
-    .min(1, "Minimum 1 chambre")
+    .number({ error: "Veuillez entrer un nombre" })
+    .int({ error: "Le nombre de chambres doit être un entier" })
+    .min(1, { error: "Minimum 1 chambre" })
     .optional(),
   desired_plan: z.enum(["starter", "pro", "prestige"], {
-    required_error: "Veuillez choisir un plan",
+    error: "Veuillez choisir un plan",
   }),
   message: z.string().optional(),
 });
@@ -184,7 +184,7 @@ export default function SubscriptionForm({ compact = false }: SubscriptionFormPr
     reset,
     formState: { errors },
   } = useForm<SubscriptionFormValues>({
-    resolver: zodResolver(subscriptionSchema),
+    resolver: zodResolver(subscriptionSchema) as Resolver<SubscriptionFormValues>,
     defaultValues: {
       city: "Abidjan",
       desired_plan: "starter",

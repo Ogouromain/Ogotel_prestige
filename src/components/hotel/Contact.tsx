@@ -35,7 +35,7 @@ export default function Contact() {
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.7, ease: 'easeOut' }}
+          transition={{ duration: 0.7, ease: 'easeOut' as const }}
           className="flex flex-col justify-center"
         >
           <span className="text-gold text-sm tracking-[0.2em] uppercase mb-4">
@@ -98,7 +98,7 @@ export default function Contact() {
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
+          transition={{ duration: 0.7, ease: 'easeOut' as const, delay: 0.15 }}
         >
           <div className="bg-charcoal rounded-2xl p-6 md:p-8 border border-white/5">
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
