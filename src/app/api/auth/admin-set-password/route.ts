@@ -46,18 +46,18 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient();
 
     // Trouver l'utilisateur par email
-    const { data: users, error: listError } = await admin.auth.admin.listUsers({
-      filter: email.toLowerCase().trim(),
-    });
+    const { data: users, error: listError } = await admin.auth.admin.listUsers();
 
-    if (listError || !users || users.users.length === 0) {
+    const user = users?.users?.find(
+      (u: any) => u.email?.toLowerCase() === email.toLowerCase().trim()
+    );
+
+    if (listError || !user) {
       return NextResponse.json(
         { error: "Aucun compte trouvé avec cet e-mail." },
         { status: 404 }
       );
     }
-
-    const user = users.users[0];
 
     // Mettre à jour le mot de passe
     const { error: updateError } = await admin.auth.admin.updateUserById(user.id, {
